@@ -137,6 +137,12 @@ test('boolean not schema: not:true rejects all, not:false accepts all (draft-07)
   // object not still works
   assert.equal(validate({ not: { type: 'string' } }, 5).valid, true);
   assert.equal(validate({ not: { type: 'string' } }, 'x').valid, false);
+  // MALFORMED not (not a valid schema) must FAIL OPEN, not reject everything
+  assert.equal(validate({ not: 5 }, 5).valid, true);
+  assert.equal(validate({ not: 'x' }, 5).valid, true);
+  assert.equal(validate({ not: null }, 5).valid, true);
+  assert.equal(validate({ not: [] }, 5).valid, true);
+  assert.equal(validate({ not: 0 }, 5).valid, true);
 });
 
 test('circular/self-referential $ref does not throw (recursion guarded)', () => {

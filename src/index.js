@@ -272,10 +272,11 @@ function validateInstance(schema, value, root, path, errors, depth = 0) {
       errors.push({ keyword: "oneOf", instancePath: path, message: "must match exactly one of the schemas", params: { matched: matches.length } });
     }
   }
-  if ("not" in schema) {
-    // `not` takes any schema, INCLUDING a boolean (not:true rejects everything,
-    // not:false accepts everything). Gate on presence here, not isObject, so a
-    // boolean not is not silently skipped.
+  if ("not" in schema && (isObject(schema.not) || typeof schema.not === "boolean")) {
+    // `not` takes any VALID schema - object OR boolean (not:true rejects all,
+    // not:false accepts all). A malformed `not` value (number/string/null/
+    // array/0) is NOT a schema and must fail OPEN (no constraint), exactly
+    // like `if`/`$ref` do for malformed siblings - NOT reject everything.
     const subErrors = [];
     validateInstance(schema.not, value, root, path, subErrors, depth + 1);
     if (subErrors.length === 0) {
