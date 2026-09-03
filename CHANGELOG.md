@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/thatssoheil/schemaflint/compare/v1.0.0...v1.0.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* bump release-please-action v4-&gt;v5 (Node24; Node20 EOL 2026-09-23) ([#3](https://github.com/thatssoheil/schemaflint/issues/3)) ([abff334](https://github.com/thatssoheil/schemaflint/commit/abff33443941d71e7593a07a6188c7b9f761d847))
+
 ## 1.0.0 (2026-09-03)
 
 
