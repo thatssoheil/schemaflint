@@ -22,4 +22,11 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm install
       - run: npm test
+      # First publish uses the granular NPM_TOKEN secret (a brand-new package
+      # can't be OIDC-published until trusted publishing is registered for it).
+      # Once schemaflint exists on npm and you register GitHub as a trusted
+      # publisher for this workflow, `--provenance` publishes via OIDC and this
+      # token is only a fallback.
       - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
