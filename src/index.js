@@ -19,6 +19,8 @@
 // the schema, strict on the value), which is what runtime validators want.
 
 const INDENT = "";
+// Recursion cap for cyclic $ref / pathological nesting (see validateInstance).
+const MAX_DEPTH = 500;
 const FORMATS = {
   // ANSI-lite: no regex backtracking bombs. `Date.parse` is deliberately
   // avoided (lenient/clamping - see the politefetch lesson). Date/time use
@@ -104,7 +106,12 @@ function resolveRef(root, pointer) {
   return node;
 }
 
-function validateInstance(schema, value, root, path, errors) {
+function validateInstance(schema, value, root, path, errors, depth = 0) {
+  // Recursion guard: a cyclic/mutually-recursive $ref would otherwise throw
+  // RangeError (violating "never throws, callable on any input"). Beyond the
+  // cap, fail open (no error) rather than crash - a value nested deeper than
+  // MAX_DEPTH is pathological for a runtime validator.
+  if (depth > MAX_DEPTH) return;
   // draft-07 schemas may be booleans: true = always valid, false = reject all.
   if (schema === false) {
     errors.push({ keyword: "false", instancePath: path, message: "schema is false - no value is valid", params: {} });
@@ -215,7 +222,7 @@ function validateInstance(schema, value, root, path, errors) {
           continue;
         }
         if (isObject(itemSchema) || typeof itemSchema === "boolean") {
-          validateInstance(itemSchema, value[i], root, `${path}[${i}]`, errors);
+          validateInstance(itemSchema, value[i], root, `${path}[${i}]`, errors, depth + 1);
         }
       }
     }
@@ -246,55 +253,58 @@ function validateInstance(schema, value, root, path, errors) {
       const fieldSchema = Object.prototype.hasOwnProperty.call(knownProps, p)
         ? knownProps[p]
         : schema.additionalProperties;
-      if (isObject(fieldSchema)) {
-        validateInstance(fieldSchema, value[p], root, `${path}.${p}`, errors);
+      if (isObject(fieldSchema) || typeof fieldSchema === "boolean") {
+        validateInstance(fieldSchema, value[p], root, `${path}.${p}`, errors, depth + 1);
       }
     }
   }
 
   // combinators
   if (Array.isArray(schema.allOf)) {
-    for (const sub of schema.allOf) validateInstance(sub, value, root, path, errors);
+    for (const sub of schema.allOf) validateInstance(sub, value, root, path, errors, depth + 1);
   }
-  if (Array.isArray(schema.anyOf) && !schema.anyOf.some((s) => validateInstanceSchema(s, value, root))) {
+  if (Array.isArray(schema.anyOf) && !schema.anyOf.some((s) => validateInstanceSchema(s, value, root, depth + 1))) {
     errors.push({ keyword: "anyOf", instancePath: path, message: "must match at least one of the schemas", params: {} });
   }
   if (Array.isArray(schema.oneOf)) {
-    const matches = schema.oneOf.filter((s) => validateInstanceSchema(s, value, root));
+    const matches = schema.oneOf.filter((s) => validateInstanceSchema(s, value, root, depth + 1));
     if (matches.length !== 1) {
       errors.push({ keyword: "oneOf", instancePath: path, message: "must match exactly one of the schemas", params: { matched: matches.length } });
     }
   }
-  if ("not" in schema && isObject(schema.not)) {
+  if ("not" in schema) {
+    // `not` takes any schema, INCLUDING a boolean (not:true rejects everything,
+    // not:false accepts everything). Gate on presence here, not isObject, so a
+    // boolean not is not silently skipped.
     const subErrors = [];
-    validateInstance(schema.not, value, root, path, subErrors);
+    validateInstance(schema.not, value, root, path, subErrors, depth + 1);
     if (subErrors.length === 0) {
       errors.push({ keyword: "not", instancePath: path, message: "must not match the disallowed schema", params: {} });
     }
   }
   if ("if" in schema && isObject(schema.if)) {
-    const passesIf = validateInstanceSchema(schema.if, value, root);
+    const passesIf = validateInstanceSchema(schema.if, value, root, depth + 1);
     if (passesIf && "then" in schema && isObject(schema.then)) {
-      validateInstance(schema.then, value, root, path, errors);
+      validateInstance(schema.then, value, root, path, errors, depth + 1);
     } else if (!passesIf && "else" in schema && isObject(schema.else)) {
-      validateInstance(schema.else, value, root, path, errors);
+      validateInstance(schema.else, value, root, path, errors, depth + 1);
     }
   }
 
   // local $ref (single resolution; resolve then re-validate)
   if ("$ref" in schema && typeof schema.$ref === "string") {
     const target = resolveRef(root, schema.$ref);
-    if (target !== undefined) validateInstance(target, value, root, path, errors);
+    if (target !== undefined) validateInstance(target, value, root, path, errors, depth + 1);
   }
 }
 
 // Silent probe (for anyOf/oneOf/if): does the schema accept the value?
-function validateInstanceSchema(schema, value, root) {
+function validateInstanceSchema(schema, value, root, depth = 0) {
   if (schema === false) return false; // false schema rejects everything
   if (schema === true) return true;   // true schema accepts everything
   if (!isObject(schema)) return true; // malformed branch = accept (fail-open)
   const errors = [];
-  validateInstance(schema, value, root, "", errors);
+  validateInstance(schema, value, root, "", errors, depth);
   return errors.length === 0;
 }
 

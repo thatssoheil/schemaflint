@@ -127,6 +127,31 @@ test('boolean schemas: false rejects everything, true accepts anything (draft-07
   assert.equal(validate({ anyOf: [false, { type: 'number' }] }, 'x').valid, false);
 });
 
+test('boolean not schema: not:true rejects all, not:false accepts all (draft-07)', () => {
+  // not:true - the true subschema matches every value, so NOT matches nothing
+  assert.equal(validate({ not: true }, 5).valid, false);
+  assert.equal(validate({ not: true }, 'x').valid, false);
+  // not:false - the false subschema matches nothing, so NOT matches everything
+  assert.equal(validate({ not: false }, 5).valid, true);
+  assert.equal(validate({ not: false }, 'x').valid, true);
+  // object not still works
+  assert.equal(validate({ not: { type: 'string' } }, 5).valid, true);
+  assert.equal(validate({ not: { type: 'string' } }, 'x').valid, false);
+});
+
+test('circular/self-referential $ref does not throw (recursion guarded)', () => {
+  // A cyclic ref would previously throw RangeError; now it fails open.
+  const cyclic = { $ref: '#/definitions/r', definitions: { r: { $ref: '#/definitions/r' } } };
+  let res;
+  assert.doesNotThrow(() => { res = validate(cyclic, 5); });
+  assert.equal(res.valid, true, 'cyclic ref fails open, never throws');
+  // mutual recursion via a data shape that descends (legit deep nesting) also safe
+  const deep = { definitions: { node: { type: 'object', properties: { next: { $ref: '#/definitions/node' } }, required: ['next'] } }, $ref: '#/definitions/node' };
+  let res2;
+  assert.doesNotThrow(() => { res2 = validate(deep, { next: { next: { next: {} } } }); });
+  assert.equal(typeof res2.valid, 'boolean');
+});
+
 test('format:date/time/date-time validate legality, not just shape', () => {
   assert.equal(validate({ format: 'date' }, '2026-09-03').valid, true);
   assert.equal(validate({ format: 'date' }, '2026-13-45').valid, false, 'invalid month rejected');
