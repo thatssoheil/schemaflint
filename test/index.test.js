@@ -152,6 +152,16 @@ test('circular/self-referential $ref does not throw (recursion guarded)', () => 
   assert.equal(typeof res2.valid, 'boolean');
 });
 
+test('format:uri validates scheme + no whitespace (documented, must be tested)', () => {
+  // format:'uri' is a documented supported format (README) - must have coverage
+  assert.equal(validate({ format: 'uri' }, 'https://example.com').valid, true);
+  assert.equal(validate({ format: 'uri' }, 'ftp://host/path').valid, true);
+  assert.equal(validate({ format: 'uri' }, 'http://x.y/z?q=1').valid, true);
+  assert.equal(validate({ format: 'uri' }, 'https://example.com/path with space').valid, false);
+  assert.equal(validate({ format: 'uri' }, 'notauri').valid, false);
+  assert.equal(validate({ format: 'uri' }, 'http://ex .com').valid, false);
+});
+
 test('format:date/time/date-time validate legality, not just shape', () => {
   assert.equal(validate({ format: 'date' }, '2026-09-03').valid, true);
   assert.equal(validate({ format: 'date' }, '2026-13-45').valid, false, 'invalid month rejected');
