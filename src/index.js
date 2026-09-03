@@ -6,12 +6,10 @@
 // Focused scope: the keywords real application code actually uses for
 // runtime validation. Deliberately OMITTED (documented, not silently wrong):
 //   - remote/$ref across URLs (local "#/" refs only)
-//   - regex `patternProperties`, `additionalItems`, `dependencies`
+//   - regex `patternProperties`, `dependencies`
 //   - `$comment`, `contentMediaType`, `contentEncoding` (annotations)
 //   - full `format` (email is ANSI-lite; see FORMATS below)
-// Full draft-07 spec compliance is ajv's job (1 MB). This is the 20 KB
-// pocket validator for the edge: browser, Deno, Bun, worker - where you
-// need the 90% you actually validate against, with zero deps and no build.
+// `items`/`additionalItems` (tuple form) ARE supported here.
 //
 // API: validate(schema, value) -> { valid: boolean, errors: Error[] }
 //   Error: { keyword, instancePath, message, params }
@@ -172,11 +170,18 @@ function validateInstance(schema, value, root, path, errors) {
     }
     if (isObject(schema.items) || Array.isArray(schema.items)) {
       const items = Array.isArray(schema.items) ? schema.items : null;
-      const tupleCount = items ? items.length : value.length;
       for (let i = 0; i < value.length; i++) {
         const itemSchema = items ? (i < items.length ? items[i] : schema.additionalItems) : schema.items;
-        if (!itemSchema) continue;
-        validateInstance(itemSchema, value[i], root, `${path}[${i}]`, errors);
+        if (itemSchema === false) {
+          // tuple with additionalItems:false - this item is beyond the tuple
+          // and must be rejected. `!itemSchema` would skip the boolean false
+          // (silent no-op); test for === false explicitly.
+          errors.push({ keyword: "additionalItems", instancePath: path, message: `must not have more than ${items ? items.length : 0} items`, params: { index: i } });
+          continue;
+        }
+        if (isObject(itemSchema)) {
+          validateInstance(itemSchema, value[i], root, `${path}[${i}]`, errors);
+        }
       }
     }
   }

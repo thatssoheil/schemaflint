@@ -82,7 +82,36 @@ test('array: minItems/maxItems/uniqueItems/items (schema and tuple)', () => {
   assert.equal(validate({ items: { type: 'number' } }, [1, 2]).valid, true);
   assert.equal(validate({ items: { type: 'number' } }, [1, 'x']).valid, false);
   assert.equal(validate({ items: [{ type: 'string' }, { type: 'number' }] }, ['a', 1]).valid, true);
-  assert.equal(validate({ items: [{ type: 'string' }, { type: 'number' }] }, ['a', 'b']).valid, false);
+  assert.equal(validate({ items: [{ type: 'string' }, { type: 'number' }] }, ['a', 'b']).valid, false, 'tuple item 2 must be number');
+});
+
+test('array: additionalItems (tuple form) rejects extras when false, validates schema when given', () => {
+  // draft-07: additionalItems only applies to tuple form (items = array)
+  const tuple = { items: [{ type: 'string' }, { type: 'number' }] };
+
+  // additionalItems:false -> beyond-tuple items MUST be rejected
+  const noExtra = { ...tuple, additionalItems: false };
+  assert.equal(validate(noExtra, ['a', 1]).valid, true, 'exactly tuple length is ok');
+  assert.equal(validate(noExtra, ['a', 1, 2]).valid, false, '3rd item is additional -> reject');
+  assert.equal(validate(noExtra, ['a', 1, 2]).errors[0].keyword, 'additionalItems');
+
+  // additionalItems as a schema -> the extra items are validated against it
+  const schemaExtra = { ...tuple, additionalItems: { type: 'boolean' } };
+  assert.equal(validate(schemaExtra, ['a', 1, true]).valid, true);
+  assert.equal(validate(schemaExtra, ['a', 1, 'x']).valid, false, 'extra item must be boolean');
+
+  // additionalItems:true -> anything allowed beyond the tuple
+  const anything = { ...tuple, additionalItems: true };
+  assert.equal(validate(anything, ['a', 1, 'free', 99]).valid, true);
+
+  // additionalItems is a NO-OP when items is a single schema (not a tuple)
+  assert.equal(validate({ items: { type: 'number' }, additionalItems: false }, [1, 2]).valid, true);
+});
+
+test('type:[] (empty type list) matches nothing', () => {
+  // draft-07: type as an array must be non-empty to validate; an empty list
+  // matches no type -> always invalid for any value. Documented fail-closed.
+  assert.equal(validate({ type: [] }, 1).valid, false);
 });
 
 // ---- object ----
