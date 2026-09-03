@@ -114,6 +114,28 @@ test('type:[] (empty type list) matches nothing', () => {
   assert.equal(validate({ type: [] }, 1).valid, false);
 });
 
+test('boolean schemas: false rejects everything, true accepts anything (draft-07)', () => {
+  assert.equal(validate(false, 1).valid, false, 'top-level false schema rejects');
+  assert.equal(validate(false, 'x').valid, false);
+  assert.equal(validate(true, 'anything').valid, true, 'top-level true schema accepts');
+  assert.equal(validate({ items: false }, [1, 2]).valid, false, 'items:false rejects items');
+  assert.equal(validate({ items: false }, []).valid, true, 'items:false allows empty array');
+  assert.equal(validate({ items: true }, [1, 2]).valid, true);
+  // boolean schema inside a combinator
+  assert.equal(validate({ anyOf: [false, { type: 'string' }] }, 'x').valid, true);
+  assert.equal(validate({ anyOf: [false, { type: 'number' }] }, 'x').valid, false);
+});
+
+test('format:date/time/date-time validate legality, not just shape', () => {
+  assert.equal(validate({ format: 'date' }, '2026-09-03').valid, true);
+  assert.equal(validate({ format: 'date' }, '2026-13-45').valid, false, 'invalid month rejected');
+  assert.equal(validate({ format: 'date' }, '2026-02-30').valid, false, 'Feb 30 rejected via round-trip');
+  assert.equal(validate({ format: 'time' }, '23:59:59').valid, true);
+  assert.equal(validate({ format: 'time' }, '24:00:00').valid, false, 'hour 24 rejected');
+  assert.equal(validate({ format: 'date-time' }, '2026-09-03T12:00:00Z').valid, true);
+  assert.equal(validate({ format: 'date-time' }, '2026-09-03T25:00:00Z').valid, false, 'hour 25 rejected');
+});
+
 // ---- object ----
 test('object: required/properties/additionalProperties', () => {
   assert.equal(validate({ required: ['a'] }, { a: 1 }).valid, true);

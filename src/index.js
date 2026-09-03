@@ -21,10 +21,33 @@
 const INDENT = "";
 const FORMATS = {
   // ANSI-lite: no regex backtracking bombs. `Date.parse` is deliberately
-  // avoided (lenient/clamping - see the politefetch lesson).
-  "date-time": (v) => /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?$/.test(v),
-  "date": (v) => /^\d{4}-\d{2}-\d{2}$/.test(v),
-  "time": (v) => /^\d{2}:\d{2}:\d{2}(\.\d+)?Z?$/.test(v),
+  // avoided (lenient/clamping - see the politefetch lesson). Date/time use
+  // explicit component range checks + Date.UTC round-trip so `2026-13-45`
+  // (invalid month) is rejected, not shape-matched.
+  "date": (v) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    if (!m) return false;
+    const [, y, mo, d] = m.map(Number);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return false;
+    const t = Date.UTC(y, mo - 1, d);
+    const r = new Date(t);
+    return r.getUTCMonth() === mo - 1 && r.getUTCDate() === d && r.getUTCFullYear() === y;
+  },
+  "time": (v) => {
+    const m = /^(\d{2}):(\d{2}):(\d{2})(\.\d+)?Z?$/.exec(v);
+    if (!m) return false;
+    const [, h, mi, s] = m.map(Number);
+    return h <= 23 && mi <= 59 && s <= 60; // s <= 60 (leap second tolerated)
+  },
+  "date-time": (v) => {
+    const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?Z?$/.exec(v);
+    if (!m) return false;
+    const [, y, mo, d, h, mi, s] = m.map(Number);
+    if (mo < 1 || mo > 12 || d < 1 || d > 31 || h > 23 || mi > 59 || s > 60) return false;
+    const t = Date.UTC(y, mo - 1, d);
+    const r = new Date(t);
+    return r.getUTCMonth() === mo - 1 && r.getUTCDate() === d && r.getUTCFullYear() === y;
+  },
   "email": (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
   "uri": (v) => /^[a-z][a-z0-9+.-]*:[^\s]*$/i.test(v),
   "uuid": (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v),
@@ -82,6 +105,12 @@ function resolveRef(root, pointer) {
 }
 
 function validateInstance(schema, value, root, path, errors) {
+  // draft-07 schemas may be booleans: true = always valid, false = reject all.
+  if (schema === false) {
+    errors.push({ keyword: "false", instancePath: path, message: "schema is false - no value is valid", params: {} });
+    return;
+  }
+  if (schema === true) return;
   if (!isObject(schema)) return;
 
   // const / enum (strict equality, JSON-safe deep)
@@ -168,18 +197,19 @@ function validateInstance(schema, value, root, path, errors) {
         }
       }
     }
-    if (isObject(schema.items) || Array.isArray(schema.items)) {
+    if (isObject(schema.items) || Array.isArray(schema.items) || typeof schema.items === "boolean") {
       const items = Array.isArray(schema.items) ? schema.items : null;
       for (let i = 0; i < value.length; i++) {
-        const itemSchema = items ? (i < items.length ? items[i] : schema.additionalItems) : schema.items;
+        // items may be a single schema (object), a boolean schema (true = any,
+        // false = no items allowed), or, with an array, a tuple of schemas.
+        const itemSchema = items
+          ? (i < items.length ? items[i] : schema.additionalItems)
+          : schema.items;
         if (itemSchema === false) {
-          // tuple with additionalItems:false - this item is beyond the tuple
-          // and must be rejected. `!itemSchema` would skip the boolean false
-          // (silent no-op); test for === false explicitly.
-          errors.push({ keyword: "additionalItems", instancePath: path, message: `must not have more than ${items ? items.length : 0} items`, params: { index: i } });
+          errors.push({ keyword: items ? "additionalItems" : "items", instancePath: `${path}[${i}]`, message: "item is not allowed (items:false)", params: { index: i } });
           continue;
         }
-        if (isObject(itemSchema)) {
+        if (isObject(itemSchema) || typeof itemSchema === "boolean") {
           validateInstance(itemSchema, value[i], root, `${path}[${i}]`, errors);
         }
       }
@@ -255,6 +285,8 @@ function validateInstance(schema, value, root, path, errors) {
 
 // Silent probe (for anyOf/oneOf/if): does the schema accept the value?
 function validateInstanceSchema(schema, value, root) {
+  if (schema === false) return false; // false schema rejects everything
+  if (schema === true) return true;   // true schema accepts everything
   if (!isObject(schema)) return true; // malformed branch = accept (fail-open)
   const errors = [];
   validateInstance(schema, value, root, "", errors);
