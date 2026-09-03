@@ -194,13 +194,18 @@ function validateInstance(schema, value, root, path, errors) {
     const props = Object.keys(value);
     if (schema.additionalProperties === false) {
       for (const p of props) {
-        if (!(p in knownProps)) {
+        // own-property check - `p in knownProps` walks the prototype chain and
+        // lets a payload field named `toString`/`constructor`/`hasOwnProperty`
+        // slip past additionalProperties:false (real bug found by probing).
+        if (!Object.prototype.hasOwnProperty.call(knownProps, p)) {
           errors.push({ keyword: "additionalProperties", instancePath: path, message: `must not have additional property '${p}'`, params: { additionalProperty: p } });
         }
       }
     }
     for (const p of props) {
-      const fieldSchema = knownProps[p] !== undefined ? knownProps[p] : schema.additionalProperties;
+      const fieldSchema = Object.prototype.hasOwnProperty.call(knownProps, p)
+        ? knownProps[p]
+        : schema.additionalProperties;
       if (isObject(fieldSchema)) {
         validateInstance(fieldSchema, value[p], root, `${path}.${p}`, errors);
       }

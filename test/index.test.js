@@ -136,10 +136,17 @@ test('allOf / anyOf / oneOf / not / if-then-else', () => {
 });
 
 // ---- $ref (local only) ----
-test('additionalProperties:false applies even with no properties dict', () => {
-  // every key is "additional" when properties is absent - must reject
-  assert.equal(validate({ additionalProperties: false }, { a: 1 }).valid, false);
-  assert.equal(validate({ additionalProperties: false }, {}).valid, true);
+test('additionalProperties:false rejects prototype-named keys (no chain bypass)', () => {
+  // `p in knownProps` walks the prototype chain - a payload field literally
+  // named `toString`/`constructor`/`hasOwnProperty` must be rejected too.
+  const s = { additionalProperties: false };
+  for (const k of ['toString', 'constructor', 'hasOwnProperty', 'valueOf']) {
+    assert.equal(validate(s, { [k]: 1 }).valid, false, `field '${k}' is additional`);
+  }
+  assert.equal(validate(s, {}).valid, true);
+  // with a properties dict, an extra prototype-named key still rejected
+  const s2 = { properties: { id: { type: 'integer' } }, additionalProperties: false };
+  assert.equal(validate(s2, { id: 1, toString: 'x' }).valid, false);
 });
 
 test('$ref ANDs with sibling keywords (documented 2019+ semantics, not draft-07 ignore)', () => {
