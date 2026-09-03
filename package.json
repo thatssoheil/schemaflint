@@ -4,9 +4,10 @@
   "description": "Zero-dependency draft-07 JSON Schema core validator. Tiny, auditable, no build.",
   "type": "module",
   "main": "src/index.js",
-  "engines": { "node": ">=20" },
+  "exports": { ".": "./src/index.js" },
+  "engines": { "node": ">=18" },
   "scripts": { "test": "node --test" },
-  "keywords": ["utility"],
+  "keywords": ["json-schema", "validator", "validation", "draft-07", "zero-dependency", "tiny", "bundle", "edge", "worker"],
   "author": "thatssoheil",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/thatssoheil/schemaflint.git" }
