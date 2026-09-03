@@ -250,11 +250,16 @@ function validateInstance(schema, value, root, path, errors, depth = 0) {
       }
     }
     for (const p of props) {
-      const fieldSchema = Object.prototype.hasOwnProperty.call(knownProps, p)
-        ? knownProps[p]
-        : schema.additionalProperties;
-      if (isObject(fieldSchema) || typeof fieldSchema === "boolean") {
-        validateInstance(fieldSchema, value[p], root, `${path}.${p}`, errors, depth + 1);
+      if (Object.prototype.hasOwnProperty.call(knownProps, p)) {
+        const fieldSchema = knownProps[p];
+        if (isObject(fieldSchema) || typeof fieldSchema === "boolean") {
+          validateInstance(fieldSchema, value[p], root, `${path}.${p}`, errors, depth + 1);
+        }
+      } else if (isObject(schema.additionalProperties)) {
+        // undeclared prop: validate against the additionalProperties SCHEMA.
+        // boolean-false is already reported by the dedicated loop above (not
+        // also as a stray 'false' keyword); boolean-true/absent is a no-op.
+        validateInstance(schema.additionalProperties, value[p], root, `${path}.${p}`, errors, depth + 1);
       }
     }
   }

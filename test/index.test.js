@@ -228,6 +228,16 @@ test('allOf / anyOf / oneOf / not / if-then-else', () => {
   assert.equal(validate(cond, { kind: 'x' }).valid, false, 'else-branch requires bVal');
 });
 
+test('additionalProperties:false produces a clean single error (no stray false keyword)', () => {
+  // Round-6 non-blocking observation: the error array should not carry a
+  // redundant {keyword:'false'} alongside the real additionalProperties error.
+  const res = validate({ properties: { a: {} }, additionalProperties: false }, { a: 1, extra: 2 }); // 'extra' is the only undeclared one
+  assert.equal(res.valid, false);
+  const kws = res.errors.map((e) => e.keyword);
+  assert.equal(kws.filter((k) => k === 'additionalProperties').length, 1, 'one additionalProperties error per undeclared prop');
+  assert.equal(kws.includes('false'), false, 'no stray false-keyword noise');
+});
+
 // ---- $ref (local only) ----
 test('additionalProperties:false rejects prototype-named keys (no chain bypass)', () => {
   // `p in knownProps` walks the prototype chain - a payload field literally
