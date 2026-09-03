@@ -1,6 +1,6 @@
 {
   "name": "schemaflint",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Zero-dependency draft-07 JSON Schema core validator. Tiny, auditable, no build.",
   "type": "module",
   "main": "src/index.js",
