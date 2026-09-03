@@ -40,7 +40,8 @@ const res = validate(schema, { id: 1, name: 'Ada', email: 'a@b.co', tags: ['x'] 
 
 const bad = validate(schema, { id: 0 });
 // bad.valid === false
-// bad.errors == [ { keyword: 'minimum', instancePath: '.id', ... }, { keyword: 'required', instancePath: '', ... } ]
+// bad.errors == [ { keyword: 'required', instancePath: '', ... },      // 'name' missing
+//                  { keyword: 'minimum', instancePath: '.id', ... } ]  // id must be >= 1
 ```
 
 `validate(schema, value)` returns `{ valid, errors }`. It **never throws** and can

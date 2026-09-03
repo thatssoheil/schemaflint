@@ -108,10 +108,11 @@ test('array: additionalItems (tuple form) rejects extras when false, validates s
   assert.equal(validate({ items: { type: 'number' }, additionalItems: false }, [1, 2]).valid, true);
 });
 
-test('type:[] (empty type list) matches nothing', () => {
-  // draft-07: type as an array must be non-empty to validate; an empty list
-  // matches no type -> always invalid for any value. Documented fail-closed.
-  assert.equal(validate({ type: [] }, 1).valid, false);
+test('type:[] (empty type list) is malformed -> fail-open, no constraint', () => {
+  // An empty type array violates draft-07 meta-schema minItems:1. Per the
+  // documented fail-open-on-malformed-schema contract, it is no constraint.
+  assert.equal(validate({ type: [] }, 1).valid, true);
+  assert.equal(validate({ type: [] }, 'x').valid, true);
 });
 
 test('boolean schemas: false rejects everything, true accepts anything (draft-07)', () => {

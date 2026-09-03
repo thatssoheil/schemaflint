@@ -124,7 +124,12 @@ function validateInstance(schema, value, root, path, errors) {
   // type
   if ("type" in schema) {
     const types = Array.isArray(schema.type) ? schema.type : [schema.type];
-    if (!types.some((t) => typeMatch(t, value))) {
+    // An empty type array is malformed (draft-07 meta-schema minItems:1).
+    // Per the fail-open-on-malformed-schema contract, treat it as no
+    // constraint rather than rejecting every value.
+    if (types.length === 0) {
+      // fall through - no type constraint
+    } else if (!types.some((t) => typeMatch(t, value))) {
       errors.push({ keyword: "type", instancePath: path, message: "must be of type " + types.join(" | "), params: { type: schema.type } });
       return; // remaining keywords assume a matching type; skip to avoid noise
     }
